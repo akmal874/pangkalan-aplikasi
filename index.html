@@ -48,7 +48,7 @@
         <ul class="dropdown-menu dropdown-menu-end">
           <li><span class="dropdown-item-text small text-body-secondary">Masuk sebagai<br><b class="text-body" id="ownerEmail">-</b></span></li>
           <li><hr class="dropdown-divider"></li>
-          <li><button class="dropdown-item needs-online" type="button" data-action="cats"><i class="bi bi-tags me-2"></i>Kelola kategori</button></li>
+          <li><button class="dropdown-item needs-online" type="button" data-action="cats"><i class="bi bi-tags me-2"></i>Kelola kategori &amp; tab</button></li>
           <li><button class="dropdown-item" type="button" data-action="export"><i class="bi bi-download me-2"></i>Ekspor data (JSON)</button></li>
           <li><button class="dropdown-item needs-online" type="button" data-action="import"><i class="bi bi-upload me-2"></i>Impor data (JSON)</button></li>
           <li><hr class="dropdown-divider"></li>
@@ -63,7 +63,7 @@
   <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
     <div>
       <div class="text-uppercase small text-body-secondary fw-semibold" style="letter-spacing:.06em" id="summary">Memuat…</div>
-      <h1 class="h3 fw-bold mb-0">Aplikasi saya</h1>
+      <h1 class="h3 fw-bold mb-0" id="pageTitle">Aplikasi saya</h1>
     </div>
     <div class="d-flex gap-2 owner-only">
       <button class="btn btn-outline-secondary rounded-3 needs-online" type="button" data-action="editmode" id="editModeBtn">
@@ -80,15 +80,24 @@
     <div>Supabase belum diatur. Isi <code>SUPABASE_URL</code> dan <code>SUPABASE_ANON_KEY</code> di file <code>js/config.js</code>, lalu muat ulang halaman.</div>
   </div>
 
+  <div id="migrateBanner" class="info-banner alert alert-danger d-flex gap-2 align-items-start py-2" hidden>
+    <i class="bi bi-database-exclamation mt-1"></i>
+    <div>Database belum diperbarui untuk fitur tab. Jalankan file <code>supabase/migration-002-tab.sql</code> di SQL Editor Supabase, lalu muat ulang halaman.</div>
+  </div>
+
   <div id="offlineBanner" class="info-banner alert alert-warning d-flex flex-wrap gap-2 align-items-start py-2" hidden>
     <i class="bi bi-cloud-slash mt-1"></i>
     <div class="flex-grow-1" style="min-width: 0">Server data tidak bisa dihubungi. Menampilkan daftar tersimpan di perangkat ini, terakhir diperbarui <b id="savedAt">-</b>. Menambah dan mengubah link sementara tidak bisa.</div>
     <button class="btn btn-sm btn-outline-dark" type="button" data-action="retry"><i class="bi bi-arrow-clockwise me-1"></i>Coba lagi</button>
   </div>
 
+  <div class="mb-3" id="tabWrap" hidden>
+    <div class="tab-bar" role="tablist" aria-label="Tab daftar link" id="tabBar"></div>
+  </div>
+
   <div class="input-group mb-3">
     <span class="input-group-text bg-body"><i class="bi bi-search"></i></span>
-    <input id="search" type="search" class="form-control" placeholder="Cari aplikasi…" autocomplete="off" aria-label="Cari aplikasi">
+    <input id="search" type="search" class="form-control" placeholder="Cari di semua tab…" autocomplete="off" aria-label="Cari">
   </div>
 
   <div id="catControls" class="mb-3"></div>
@@ -148,9 +157,9 @@
             <span class="badge rounded-pill text-bg-light border" style="font-size:.7rem" id="autoBadge"><i class="bi bi-magic me-1"></i>Otomatis</span>
           </div>
           <div class="flex-grow-1">
-            <label for="fName" class="form-label fw-semibold mb-1">Nama aplikasi</label>
+            <label for="fName" class="form-label fw-semibold mb-1">Nama</label>
             <input id="fName" class="form-control" maxlength="80" placeholder="Contoh: Simulator Radar" required>
-            <div class="invalid-feedback">Nama aplikasi wajib diisi.</div>
+            <div class="invalid-feedback">Nama wajib diisi.</div>
           </div>
         </div>
         <div>
@@ -162,17 +171,25 @@
         <div>
           <label for="fCat" class="form-label fw-semibold">Kategori</label>
           <select id="fCat" class="form-select"></select>
+          <div class="form-text" id="fCatTab"></div>
         </div>
-        <div id="newCatWrap" hidden>
-          <label for="fNewCat" class="form-label fw-semibold">Nama kategori baru</label>
-          <input id="fNewCat" class="form-control" maxlength="40" placeholder="Contoh: Ujian">
-          <div class="invalid-feedback" id="newCatErr">Nama kategori wajib diisi.</div>
+        <div id="newCatWrap" class="d-flex flex-column gap-2" hidden>
+          <div>
+            <label for="fNewCat" class="form-label fw-semibold">Nama kategori baru</label>
+            <input id="fNewCat" class="form-control" maxlength="40" placeholder="Contoh: Ujian">
+            <div class="invalid-feedback" id="newCatErr">Nama kategori wajib diisi.</div>
+          </div>
+          <div>
+            <div class="form-label fw-semibold mb-1" id="newCatTabLabel">Masuk ke tab</div>
+            <div class="seg" role="radiogroup" aria-labelledby="newCatTabLabel" id="newCatTab"></div>
+          </div>
         </div>
         <div>
           <div class="d-flex align-items-baseline justify-content-between">
             <div class="form-label fw-semibold" id="iconLabel">Ikon</div>
             <button type="button" class="btn btn-link btn-sm p-0 text-accent" data-action="autoicon" id="autoIconBtn" hidden><i class="bi bi-magic me-1"></i>Kembali ke otomatis</button>
           </div>
+          <p class="small text-body-secondary mb-2">Dipilih otomatis dari alamat link dan nama, misalnya youtube.com → ikon YouTube.</p>
           <div class="icon-grid" id="iconGrid" role="radiogroup" aria-labelledby="iconLabel"></div>
           <label for="fIcon" class="form-label small text-body-secondary mt-2 mb-1">Atau ketik nama ikon lain dari icons.getbootstrap.com</label>
           <input id="fIcon" class="form-control form-control-sm" placeholder="Contoh: rocket-takeoff" autocomplete="off" spellcheck="false">
@@ -185,7 +202,7 @@
         <div class="d-flex flex-column gap-2">
           <div class="form-check form-switch mb-0">
             <input class="form-check-input" type="checkbox" role="switch" id="fFav">
-            <label class="form-check-label" for="fFav"><i class="bi bi-star-fill text-star me-1"></i>Favorit, tampil di baris paling atas</label>
+            <label class="form-check-label" for="fFav"><i class="bi bi-star-fill text-star me-1"></i>Favorit, tampil paling atas di tab-nya</label>
           </div>
           <div class="form-check form-switch mb-0">
             <input class="form-check-input" type="checkbox" role="switch" id="fPrivate">
@@ -209,14 +226,10 @@
     <div class="modal-content">
       <div class="modal-header">
         <button type="button" class="btn btn-sm btn-link text-body p-0 me-2" data-action="catback" id="catBackBtn" aria-label="Kembali" hidden><i class="bi bi-arrow-left fs-5"></i></button>
-        <h2 class="modal-title fs-5 fw-bold" id="catModalTitle">Kelola kategori</h2>
+        <h2 class="modal-title fs-5 fw-bold" id="catModalTitle">Kelola kategori &amp; tab</h2>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
       </div>
-      <div class="modal-body" id="catListView">
-        <p class="small text-body-secondary">Urutan di sini menjadi urutan kategori di halaman utama. Seret pegangan atau pakai tombol panah.</p>
-        <div class="cat-list" id="catList"></div>
-        <button class="btn btn-outline-secondary w-100 mt-3" type="button" data-action="newcat"><i class="bi bi-plus-lg me-1"></i>Tambah kategori</button>
-      </div>
+      <div class="modal-body pt-1" id="catListView"></div>
       <form class="modal-body d-flex flex-column gap-3" id="catEditView" novalidate hidden>
         <div class="d-flex align-items-center gap-3">
           <span class="icon-preview" id="catPreview"><i class="bi bi-folder2"></i></span>
@@ -225,6 +238,11 @@
             <input id="cName" class="form-control" maxlength="40" required>
             <div class="invalid-feedback" id="cNameErr">Nama kategori wajib diisi.</div>
           </div>
+        </div>
+        <div>
+          <div class="form-label fw-semibold mb-1" id="cTabLabel">Tampil di tab</div>
+          <div class="seg" role="radiogroup" aria-labelledby="cTabLabel" id="cTab"></div>
+          <div class="form-text">Semua link di kategori ini ikut pindah ke tab yang dipilih.</div>
         </div>
         <div>
           <div class="form-label fw-semibold" id="cColorLabel">Warna</div>

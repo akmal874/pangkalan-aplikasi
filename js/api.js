@@ -7,7 +7,7 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { normUrl } from './utils.js';
 
 const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1/+esm';
-const CAT_COLS = 'id,name,color,icon,sort_order';
+const CAT_COLS = 'id,name,color,icon,sort_order,tab';
 const LINK_COLS = 'id,category_id,name,url,icon,note,is_favorite,is_private,sort_order';
 
 export const isConfigured = !SUPABASE_URL.includes('GANTI') && !SUPABASE_ANON_KEY.includes('GANTI');
@@ -40,6 +40,13 @@ export function friendly(err) {
 }
 function check({ data, error }) { if (error) throw error; return data; }
 
+/** Galat karena migration-002-tab.sql belum dijalankan (kolom tab / tabel settings belum ada). */
+export function isMigrationError(err) {
+  const m = (err && err.message) || '';
+  return ['42703', '42P01', 'PGRST204', 'PGRST205'].includes(err && err.code)
+    || /column .*tab.* does not exist|relation .*settings.* does not exist|could not find the table .*settings/i.test(m);
+}
+
 // ----- Login -----
 export async function getSession() {
   const sb = await getClient();
@@ -71,11 +78,22 @@ export async function updatePassword(password) {
 // ----- Membaca data -----
 export async function fetchAll() {
   const sb = await getClient();
-  const [cats, links] = await Promise.all([
+  const [cats, links, settings] = await Promise.all([
     sb.from('categories').select(CAT_COLS).order('sort_order').order('name'),
-    sb.from('links').select(LINK_COLS).order('sort_order').order('name')
+    sb.from('links').select(LINK_COLS).order('sort_order').order('name'),
+    sb.from('settings').select('links_tab_private').limit(1).maybeSingle()
   ]);
-  return { categories: check(cats), links: check(links) };
+  return {
+    categories: check(cats),
+    links: check(links),
+    settings: { links_tab_private: !!(check(settings) || {}).links_tab_private }
+  };
+}
+
+// ----- Pengaturan -----
+export async function saveSettings(patch) {
+  const sb = await getClient();
+  check(await sb.from('settings').upsert({ ...patch, updated_at: new Date().toISOString() }, { onConflict: 'user_id' }));
 }
 
 // ----- Link -----
@@ -136,7 +154,7 @@ export async function importData(data, mode, current) {
   const baseOrder = existingCats.length;
   const newCats = data.categories.filter(c => !byName.has(c.name.toLowerCase()))
     .filter((c, i, arr) => arr.findIndex(x => x.name.toLowerCase() === c.name.toLowerCase()) === i)
-    .map((c, i) => ({ name: c.name, color: c.color, icon: c.icon, sort_order: baseOrder + i }));
+    .map((c, i) => ({ name: c.name, color: c.color, icon: c.icon, tab: c.tab, sort_order: baseOrder + i }));
   if (newCats.length) {
     const rows = check(await sb.from('categories').insert(newCats).select(CAT_COLS));
     rows.forEach(r => byName.set(r.name.toLowerCase(), r.id));
@@ -155,5 +173,6 @@ export async function importData(data, mode, current) {
       sort_order: l.sort_order, category_id: l.category_ref ? (refToId[l.category_ref] || null) : null });
   }
   if (newLinks.length) check(await sb.from('links').insert(newLinks));
+  if (mode === 'replace' && data.settings) await saveSettings({ links_tab_private: !!data.settings.links_tab_private });
   return { addedCategories: newCats.length, addedLinks: newLinks.length, skipped };
 }

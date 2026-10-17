@@ -4,6 +4,7 @@ Halaman peluncur pribadi berisi link semua aplikasi Anda. Bisa dibuka di HP dan 
 
 - **Tamu** (tanpa login): melihat dan membuka link publik, menyalin link.
 - **Pemilik** (setelah masuk): menambah, mengubah, menghapus link dan kategori, mengatur urutan, favorit, link privat, ekspor/impor.
+- **Dua tab:** **Aplikasi Saya** (aplikasi buatan sendiri) dan **Link Lain** (Google, YouTube, game, dan situs lain). Tab Link Lain bisa dibuat privat.
 
 **Teknologi:** HTML + Bootstrap 5 + JavaScript biasa (tanpa proses build), Supabase (login dan database), GitHub Pages (hosting gratis).
 
@@ -27,8 +28,9 @@ pangkalan-aplikasi/
 │   ├── store.js               salinan data, riwayat, pengaturan di perangkat
 │   └── utils.js               fungsi bantu, aturan ikon otomatis
 ├── supabase/
-│   ├── schema.sql             tabel, aturan keamanan (RLS), fungsi urutan
-│   └── seed.sql               data awal: 4 kategori, 11 link
+│   ├── schema.sql             tabel, aturan keamanan (RLS), fungsi urutan (pemasangan baru)
+│   ├── seed.sql               data awal: 4 kategori, 11 link
+│   └── migration-002-tab.sql  pembaruan untuk database lama: fitur dua tab
 └── .github/workflows/
     └── keep-alive.yml         menjaga Supabase tetap aktif
 ```
@@ -102,6 +104,20 @@ Buka alamat aplikasi di Chrome (Android) atau Safari (iPhone), lalu pilih **Tamb
 
 ---
 
+## Pembaruan: fitur dua tab (untuk yang sudah memasang sebelumnya)
+
+Jika aplikasi Anda sudah berjalan sebelum fitur tab ditambahkan:
+
+1. **Perbarui database dulu.** Buka **SQL Editor → New query**, tempel isi `supabase/migration-002-tab.sql`, lalu **Run**. Data lama tidak hilang. Semua kategori yang ada otomatis masuk tab **Aplikasi Saya**.
+2. **Ganti file di GitHub:** `index.html`, `sw.js`, `assets/css/app.css`, `js/app.js`, `js/api.js`, `js/store.js`, `js/utils.js`. File `js/config.js` **tidak perlu** diganti.
+3. Tunggu 1–2 menit, lalu muat ulang halaman.
+
+Jika langkah 2 dilakukan sebelum langkah 1, halaman menampilkan pemberitahuan merah "Database belum diperbarui". Jalankan langkah 1, lalu muat ulang.
+
+Pemasangan baru tidak perlu file ini, karena isinya sudah termasuk di `schema.sql`.
+
+---
+
 ## Penggunaan
 
 | Yang ingin dilakukan | Caranya |
@@ -110,21 +126,24 @@ Buka alamat aplikasi di Chrome (Android) atau Safari (iPhone), lalu pilih **Tamb
 | Menambah link | **Tambah link** (laptop) atau tombol **+** (HP) |
 | Mengubah atau menghapus link | Tombol titik tiga atau klik kanan (laptop), tekan lama ikon (HP) |
 | Mengatur urutan link | Tombol **Atur**, lalu seret. Di HP, tekan dan tahan sebentar sebelum menyeret |
-| Mengelola kategori | Menu akun → **Kelola kategori** |
+| Mengelola kategori | Menu akun → **Kelola kategori & tab** |
+| Memindah kategori ke tab lain | Kelola kategori & tab → tombol ubah → **Tampil di tab** |
+| Menyembunyikan tab Link Lain dari tamu | Kelola kategori & tab → saklar **Tab ini privat** |
 | Link favorit | Saklar **Favorit** di form, atau menu aksi link |
 | Link privat | Saklar **Privat** di form. Hanya tampil setelah masuk |
 | Cadangan data | Menu akun → **Ekspor data** / **Impor data** |
 | Menyalin link | Menu aksi link → **Salin link** (bisa tanpa masuk) |
+| Melihat link yang tersembunyi di HP | Kotak **+N lainnya**. Di HP, setiap kategori tampil maksimal 2 baris. Di laptop semua link tampil |
 
 ### Ikon otomatis
 
-Saat mengetik nama aplikasi, ikon dipilih dari kata kunci, misalnya "radar", "jurnal", "CBT", "LPJ", "absensi". Jika tidak ada yang cocok, dipakai ikon bawaan kategori. Daftar kata kunci ada di `ICON_RULES` dalam `js/utils.js` dan bisa ditambah sendiri. Semua nama ikon bisa dilihat di [icons.getbootstrap.com](https://icons.getbootstrap.com).
+Ikon dipilih otomatis berurutan dari: (1) alamat situs terkenal, misalnya youtube.com → YouTube, drive.google.com → Google; (2) kata kunci di nama, misalnya "radar", "jurnal", "CBT", "LPJ", "game"; (3) ikon bawaan kategori. Aturannya ada di `URL_RULES` dan `ICON_RULES` dalam `js/utils.js` dan bisa ditambah sendiri. Semua nama ikon bisa dilihat di [icons.getbootstrap.com](https://icons.getbootstrap.com).
 
 ---
 
 ## Memperbarui aplikasi
 
-Setelah mengubah file di GitHub, naikkan versi di baris pertama `sw.js`, misalnya `const VERSION = 'v2';`. Tanpa itu, HP yang sudah memasang aplikasi bisa tetap memakai file lama dari cache.
+File aplikasi (js, css, config) selalu diambil dari server lebih dulu, jadi perubahan langsung terpakai setelah halaman dimuat ulang. GitHub Pages butuh 1–2 menit untuk menayangkan perubahan. Jika Anda mengubah daftar file di `sw.js` atau mengganti versi pustaka, naikkan juga `VERSION` di `sw.js`.
 
 ---
 
@@ -134,7 +153,7 @@ Setelah mengubah file di GitHub, naikkan versi di baris pertama `sw.js`, misalny
 - Aturan RLS: siapa pun boleh membaca kategori dan link publik. Link privat dan semua perubahan hanya untuk pemilik.
 - Database menolak link selain `http://` dan `https://` (misalnya `javascript:`).
 - Halaman memakai `noindex` sehingga tidak muncul di hasil pencarian Google.
-- Daftar link tetap bisa dilihat siapa saja yang tahu alamatnya. Untuk link yang tidak boleh terlihat, aktifkan **Privat**.
+- Daftar link tetap bisa dilihat siapa saja yang tahu alamatnya. Untuk link yang tidak boleh terlihat, aktifkan **Privat**, atau jadikan seluruh tab Link Lain privat.
 
 ---
 
@@ -147,5 +166,6 @@ Setelah mengubah file di GitHub, naikkan versi di baris pertama `sw.js`, misalny
 | "Email atau password salah" | Periksa akun di Authentication → Users |
 | "Email akun belum dikonfirmasi" | Saat membuat akun, centang Auto Confirm User, atau konfirmasi dari dashboard |
 | Link reset password membuka halaman lain | Site URL / Redirect URLs belum diisi alamat GitHub Pages |
-| Perubahan file tidak muncul di HP | Naikkan `VERSION` di `sw.js`, lalu buka ulang aplikasi |
+| Perubahan file tidak muncul / masih "Supabase belum diatur" | Tunggu 1–2 menit, lalu muat ulang paksa (Ctrl+Shift+R). Jika masih, hapus data situs di browser |
 | Workflow keep-alive merah | Secret belum diisi atau salah ketik |
+| "Database belum diperbarui untuk fitur tab" | `supabase/migration-002-tab.sql` belum dijalankan |
