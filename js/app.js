@@ -10,6 +10,7 @@ import {
 import * as api from './api.js';
 
 const $ = id => document.getElementById(id);
+await window.paReady.catch(err => console.error('Pustaka gagal dimuat:', err));   // Bootstrap & SortableJS (lokal atau CDN)
 const bs = window.bootstrap;
 
 /* ===================== STATE ===================== */
@@ -222,6 +223,7 @@ function searchHtml(q) {
 /* ===================== RENDER ===================== */
 function render() {
   updateStatus();
+  updateBackupInfo();
   if (!loaded) return;
   if (!tabAllowed(activeTab)) activeTab = 'apps';
   const q = $('search').value.trim().toLowerCase();
@@ -310,11 +312,45 @@ function openLinkSheet(id) {
   $('linkSheetBody').innerHTML = `
     <a class="sheet-item" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer" data-open="${esc(l.id)}"><span class="sq-icon"><i class="bi bi-box-arrow-up-right"></i></span><span class="fw-semibold">Buka</span></a>
     <button type="button" class="sheet-item" data-copy="${esc(l.id)}"><span class="sq-icon"><i class="bi bi-copy"></i></span><span class="fw-semibold">Salin link</span></button>
+    ${canShare ? `<button type="button" class="sheet-item" data-share="${esc(l.id)}"><span class="sq-icon"><i class="bi bi-share"></i></span><span class="fw-semibold">Bagikan…</span></button>` : ''}
+    <button type="button" class="sheet-item" data-qr="${esc(l.id)}"><span class="sq-icon"><i class="bi bi-qr-code"></i></span><span class="fw-semibold">Tampilkan kode QR</span></button>
     ${loggedIn ? `<hr class="my-2">
     <button type="button" class="sheet-item" data-fav="${esc(l.id)}" ${off}><span class="sq-icon"><i class="bi ${l.is_favorite ? 'bi-star' : 'bi-star-fill'} text-star"></i></span><span class="fw-semibold">${l.is_favorite ? 'Hapus dari favorit' : 'Jadikan favorit'}</span></button>
     <button type="button" class="sheet-item" data-edit="${esc(l.id)}" ${off}><span class="sq-icon"><i class="bi bi-pencil"></i></span><span class="fw-semibold">Ubah</span></button>
     <button type="button" class="sheet-item danger" data-del="${esc(l.id)}" ${off}><span class="sq-icon"><i class="bi bi-trash"></i></span><span class="fw-semibold">Hapus</span></button>` : ''}`;
   linkSheet.show();
+}
+
+/* ===================== BAGIKAN & KODE QR ===================== */
+const canShare = typeof navigator.share === 'function';
+async function shareLink(l) {
+  try { await navigator.share({ title: l.name, text: l.name, url: l.url }); }
+  catch (err) { if (err && err.name !== 'AbortError') notify('Gagal membagikan. Gunakan Salin link.'); }
+}
+const qrModal = new bs.Modal($('qrModal'));
+let qrLink = null;
+function qrSvg(text) {
+  const qr = window.PAQRCode.create(text, 'M');
+  const n = qr.size, q = 4, total = n + q * 2;                 // q = zona tenang di sekeliling kode
+  let d = '';
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) d += `M${c + q} ${r + q}h1v1h-1z`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${total} ${total}" shape-rendering="crispEdges"><rect width="${total}" height="${total}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+}
+async function openQr(l) {
+  linkSheet.hide();
+  qrLink = l;
+  $('qrTitle').textContent = l.name;
+  $('qrUrl').textContent = l.url;
+  $('qrShareBtn').hidden = !canShare;
+  $('qrBox').innerHTML = '<div class="d-flex h-100 align-items-center justify-content-center"><span class="spinner-border text-secondary"></span></div>';
+  qrModal.show();
+  try {
+    await window.paLoadScript(...window.paVendor.qrcode);
+    $('qrBox').innerHTML = qrSvg(l.url);
+    $('qrBox').setAttribute('aria-label', 'Kode QR untuk ' + l.name);
+  } catch (err) {
+    $('qrBox').innerHTML = '<p class="small text-danger p-3 m-0">Kode QR gagal dibuat. Periksa koneksi lalu coba lagi.</p>';
+  }
 }
 
 /* Tekan lama (HP) atau klik kanan (laptop) membuka lembar aksi */
@@ -601,15 +637,32 @@ $('catDelBtn').addEventListener('click', async () => {
 });
 
 /* ===================== EKSPOR / IMPOR ===================== */
-function exportData() {
+const BACKUP_KEY = 'pa-last-backup', SNOOZE_KEY = 'pa-backup-snooze';
+const BACKUP_DAYS = 30, SNOOZE_DAYS = 7, DAY = 864e5;
+function daysSince(iso) { const t = Date.parse(iso || ''); return Number.isFinite(t) ? Math.floor((Date.now() - t) / DAY) : null; }
+/* Pengingat cadangan (dicatat per perangkat) */
+function updateBackupInfo() {
+  const last = lsGet(BACKUP_KEY, ''), d = daysSince(last);
+  $('lastBackupInfo').textContent = last ? `Cadangan terakhir: ${fmtTime(last)}` : 'Belum pernah dicadangkan di perangkat ini';
+  const snoozed = Date.now() < Number(lsGet(SNOOZE_KEY, '0'));
+  const due = d === null || d >= BACKUP_DAYS;
+  const show = loggedIn && !needsMigration && db.links.length > 0 && due && !snoozed;
+  $('backupBanner').hidden = !show;
+  if (show) $('backupBannerText').textContent = d === null
+    ? 'Data link Anda belum pernah dicadangkan dari perangkat ini. Simpan satu file cadangan untuk berjaga-jaga.'
+    : `Sudah ${d} hari sejak cadangan terakhir. Simpan file cadangan baru untuk berjaga-jaga.`;
+}
+function exportData(prefix = 'pangkalan-aplikasi') {
   const payload = { app: 'pangkalan-aplikasi', version: 2, exported_at: new Date().toISOString(),
     settings: db.settings, categories: db.categories, links: db.links };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `pangkalan-aplikasi-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `${prefix}-${new Date().toISOString().slice(0, 10)}.json`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  lsSet(BACKUP_KEY, new Date().toISOString()); lsSet(SNOOZE_KEY, '0');
+  updateBackupInfo();
   notify('File cadangan diunduh');
 }
 const importModal = new bs.Modal($('importModal'));
@@ -629,6 +682,8 @@ $('importFile').addEventListener('change', async e => {
 async function runImport(mode) {
   const btns = document.querySelectorAll('#importModal [data-action^="import"]');
   btns.forEach(b => { b.disabled = true; });
+  // Poin keamanan: sebelum "Ganti semua", data sekarang diunduh dulu sebagai cadangan
+  if (mode === 'replace' && (db.links.length || db.categories.length)) exportData('cadangan-sebelum-impor');
   try {
     const r = await api.importData(pendingImport, mode, db);
     pendingImport = null; importModal.hide(); await refresh();
@@ -725,6 +780,9 @@ document.addEventListener('click', async e => {
       recent = recent.filter(x => !ids.has(x)); saveRecent(recent); render(); notify('Riwayat tab ini dihapus dari perangkat ini');
     }
     else if (act === 'export') exportData();
+    else if (act === 'snoozebackup') { lsSet(SNOOZE_KEY, String(Date.now() + SNOOZE_DAYS * DAY)); updateBackupInfo(); notify(`Diingatkan lagi dalam ${SNOOZE_DAYS} hari`); }
+    else if (act === 'qrcopy' && qrLink) { const ok = await copyText(qrLink.url); notify(ok ? 'Link disalin' : 'Gagal menyalin. Salin manual dari kotak di atas.'); }
+    else if (act === 'qrshare' && qrLink) shareLink(qrLink);
     else if (act === 'import') { if (canEdit()) $('importFile').click(); }
     else if (act === 'importmerge' && pendingImport) runImport('merge');
     else if (act === 'importreplace' && pendingImport) {
@@ -759,6 +817,10 @@ document.addEventListener('click', async e => {
     const ok = await copyText(l.url); linkSheet.hide();
     notify(ok ? 'Link disalin' : 'Gagal menyalin. Salin manual: ' + l.url); return;
   }
+  const shr = e.target.closest('[data-share]');
+  if (shr) { const l = db.links.find(x => x.id === shr.dataset.share); linkSheet.hide(); if (l) shareLink(l); return; }
+  const qrb = e.target.closest('[data-qr]');
+  if (qrb) { const l = db.links.find(x => x.id === qrb.dataset.qr); if (l) openQr(l); return; }
   const fv = e.target.closest('[data-fav]');
   if (fv) {
     const l = db.links.find(x => x.id === fv.dataset.fav); if (!l) return;
@@ -779,6 +841,17 @@ document.addEventListener('click', async e => {
 });
 $('search').addEventListener('input', render);
 window.addEventListener('online', () => { if (serverDown) refresh(); });
+
+/* Pintasan keyboard (laptop): "/" ke kolom cari, Esc mengosongkan pencarian */
+document.addEventListener('keydown', e => {
+  const t = e.target, typing = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+  if (e.key === '/' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey && !document.querySelector('.modal.show')) {
+    e.preventDefault(); $('search').focus(); $('search').select();
+  } else if (e.key === 'Escape' && t === $('search')) {
+    if ($('search').value) { $('search').value = ''; render(); } else $('search').blur();
+  }
+});
+if (!phoneMq.matches) $('search').placeholder = 'Cari di semua tab… (tekan / )';
 
 /* ===================== MULAI ===================== */
 async function start() {
@@ -807,3 +880,8 @@ async function start() {
   await refresh();
 }
 start();
+
+/* Service worker: halaman tetap bisa dibuka tanpa internet */
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}

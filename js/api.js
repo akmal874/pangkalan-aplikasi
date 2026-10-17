@@ -1,12 +1,11 @@
 // =====================================================================
 // Semua komunikasi dengan Supabase (login dan data)
-// supabase-js dimuat saat dibutuhkan, jadi halaman tetap tampil dari
-// salinan lokal meskipun pustaka atau server tidak bisa dijangkau.
+// supabase-js dimuat saat dibutuhkan (dari assets/vendor, cadangan CDN),
+// jadi halaman tetap tampil dari salinan lokal meskipun pustaka atau server tidak bisa dijangkau.
 // =====================================================================
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { normUrl } from './utils.js';
 
-const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1/+esm';
 const CAT_COLS = 'id,name,color,icon,sort_order,tab';
 const LINK_COLS = 'id,category_id,name,url,icon,note,is_favorite,is_private,sort_order';
 
@@ -16,8 +15,8 @@ let clientPromise = null;
 export function getClient() {
   if (!isConfigured) return Promise.reject(new Error('Supabase belum diatur. Isi js/config.js terlebih dahulu.'));
   if (!clientPromise) {
-    clientPromise = import(SUPABASE_JS)
-      .then(({ createClient }) => createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    clientPromise = window.paLoadScript(...window.paVendor.supabase)
+      .then(() => window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
       }))
       .catch(err => { clientPromise = null; throw err; });
@@ -29,7 +28,7 @@ export function getClient() {
 export function friendly(err) {
   const m = (err && (err.message || err.error_description)) || String(err || '');
   const code = err && err.code;
-  if (/failed to fetch|networkerror|load failed|fetch dynamically imported module/i.test(m)) return 'Tidak bisa terhubung ke server. Periksa koneksi internet lalu coba lagi.';
+  if (/failed to fetch|networkerror|load failed|fetch dynamically imported module|gagal memuat/i.test(m)) return 'Tidak bisa terhubung ke server. Periksa koneksi internet lalu coba lagi.';
   if (/invalid login credentials/i.test(m)) return 'Email atau password salah. Periksa kembali lalu coba lagi.';
   if (/email not confirmed/i.test(m)) return 'Email akun belum dikonfirmasi. Tandai akun sebagai terkonfirmasi di dashboard Supabase.';
   if (code === '23505') return 'Nama kategori itu sudah dipakai. Gunakan nama lain.';

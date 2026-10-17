@@ -20,10 +20,12 @@ pangkalan-aplikasi/
 ├── .nojekyll                  agar GitHub Pages menyajikan file apa adanya
 ├── assets/
 │   ├── css/app.css            gaya tambahan di atas Bootstrap
-│   └── icons/                 ikon aplikasi (192, 512, maskable, favicon)
+│   ├── icons/                 ikon aplikasi (192, 512, maskable, favicon)
+│   └── vendor/                pustaka pihak ketiga (diisi oleh workflow vendor.yml), qrcode/ sudah tersedia
 ├── js/
 │   ├── config.js              ← ISI URL dan kunci Supabase di sini
 │   ├── api.js                 login dan semua panggilan ke Supabase
+│   ├── boot.js                tema dan pemuat pustaka (lokal dulu, CDN sebagai cadangan)
 │   ├── app.js                 logika halaman
 │   ├── store.js               salinan data, riwayat, pengaturan di perangkat
 │   └── utils.js               fungsi bantu, aturan ikon otomatis
@@ -32,7 +34,8 @@ pangkalan-aplikasi/
 │   ├── seed.sql               data awal: 4 kategori, 11 link
 │   └── migration-002-tab.sql  pembaruan untuk database lama: fitur dua tab
 └── .github/workflows/
-    └── keep-alive.yml         menjaga Supabase tetap aktif
+    ├── keep-alive.yml         menjaga Supabase tetap aktif
+    └── vendor.yml             mengunduh pustaka ke assets/vendor (dijalankan manual sekali)
 ```
 
 ---
@@ -98,7 +101,15 @@ Proyek Supabase gratis dijeda jika databasenya jarang dipakai selama 7 hari. Wor
 
 Jika proyek terlanjur dijeda, aplikasi tetap menampilkan daftar terakhir yang tersimpan di perangkat. Pulihkan proyek lewat dashboard Supabase dengan **Resume project**.
 
-### 6. Pasang di HP
+### 6. Simpan pustaka di repositori sendiri
+
+Buka tab **Actions → Unduh pustaka ke repositori → Run workflow**. Workflow ini mengunduh Bootstrap, Bootstrap Icons, SortableJS, dan supabase-js ke folder `assets/vendor`, lalu menyimpannya ke repositori. Cukup sekali.
+
+Sebelum workflow ini dijalankan, aplikasi tetap berjalan normal dengan memakai CDN jsDelivr sebagai cadangan.
+
+> Jika workflow gagal dengan pesan izin, buka **Settings → Actions → General → Workflow permissions**, pilih **Read and write permissions**, lalu jalankan ulang.
+
+### 7. Pasang di HP
 
 Buka alamat aplikasi di Chrome (Android) atau Safari (iPhone), lalu pilih **Tambahkan ke Layar Utama**.
 
@@ -133,6 +144,10 @@ Pemasangan baru tidak perlu file ini, karena isinya sudah termasuk di `schema.sq
 | Link privat | Saklar **Privat** di form. Hanya tampil setelah masuk |
 | Cadangan data | Menu akun → **Ekspor data** / **Impor data** |
 | Menyalin link | Menu aksi link → **Salin link** (bisa tanpa masuk) |
+| Membagikan link | Menu aksi link → **Bagikan…** (di HP, langsung ke WhatsApp dan aplikasi lain) |
+| Kode QR untuk siswa | Menu aksi link → **Tampilkan kode QR** |
+| Mencari cepat di laptop | Tekan `/` untuk ke kolom cari, `Esc` untuk mengosongkan |
+| Cadangan berkala | Pengingat muncul jika 30 hari belum mengekspor dari perangkat itu. **Nanti** menunda 7 hari |
 | Melihat link yang tersembunyi di HP | Kotak **+N lainnya**. Di HP, setiap kategori tampil maksimal 2 baris. Di laptop semua link tampil |
 
 ### Ikon otomatis
@@ -153,6 +168,8 @@ File aplikasi (js, css, config) selalu diambil dari server lebih dulu, jadi peru
 - Aturan RLS: siapa pun boleh membaca kategori dan link publik. Link privat dan semua perubahan hanya untuk pemilik.
 - Database menolak link selain `http://` dan `https://` (misalnya `javascript:`).
 - Halaman memakai `noindex` sehingga tidak muncul di hasil pencarian Google.
+- Aturan keamanan halaman (Content Security Policy): skrip hanya boleh dari situs ini dan jsDelivr (cadangan), dan data hanya dikirim ke Supabase.
+- Sebelum impor **Ganti semua**, data yang ada otomatis diunduh dulu sebagai file cadangan.
 - Daftar link tetap bisa dilihat siapa saja yang tahu alamatnya. Untuk link yang tidak boleh terlihat, aktifkan **Privat**, atau jadikan seluruh tab Link Lain privat.
 
 ---
@@ -168,4 +185,5 @@ File aplikasi (js, css, config) selalu diambil dari server lebih dulu, jadi peru
 | Link reset password membuka halaman lain | Site URL / Redirect URLs belum diisi alamat GitHub Pages |
 | Perubahan file tidak muncul / masih "Supabase belum diatur" | Tunggu 1–2 menit, lalu muat ulang paksa (Ctrl+Shift+R). Jika masih, hapus data situs di browser |
 | Workflow keep-alive merah | Secret belum diisi atau salah ketik |
+| Workflow "Unduh pustaka" gagal karena izin | Settings → Actions → General → Workflow permissions → Read and write permissions |
 | "Database belum diperbarui untuk fitur tab" | `supabase/migration-002-tab.sql` belum dijalankan |

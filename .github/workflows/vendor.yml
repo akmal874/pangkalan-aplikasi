@@ -1,0 +1,62 @@
+# Mengunduh pustaka pihak ketiga ke folder assets/vendor di repositori ini,
+# supaya aplikasi tidak bergantung pada CDN.
+#
+# Cara pakai: tab Actions → "Unduh pustaka ke repositori" → Run workflow.
+# Cukup sekali. Jalankan lagi hanya jika versi pustaka di bawah diganti.
+# Sebelum workflow ini dijalankan, aplikasi tetap berjalan memakai CDN sebagai cadangan.
+
+name: Unduh pustaka ke repositori
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  BOOTSTRAP: 5.3.3
+  BOOTSTRAP_ICONS: 1.11.3
+  SORTABLE: 1.15.2
+  SUPABASE_JS: 2.110.1
+
+jobs:
+  vendor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unduh file
+        run: |
+          set -euo pipefail
+          CDN=https://cdn.jsdelivr.net/npm
+          get() { mkdir -p "$(dirname "$2")"; curl -fsSL --retry 3 "$1" -o "$2"; echo "OK  $2 ($(wc -c < "$2") byte)"; }
+          V=assets/vendor
+          get "$CDN/bootstrap@$BOOTSTRAP/dist/css/bootstrap.min.css"            "$V/bootstrap/bootstrap.min.css"
+          get "$CDN/bootstrap@$BOOTSTRAP/dist/js/bootstrap.bundle.min.js"       "$V/bootstrap/bootstrap.bundle.min.js"
+          get "$CDN/bootstrap-icons@$BOOTSTRAP_ICONS/font/bootstrap-icons.min.css"         "$V/bootstrap-icons/bootstrap-icons.min.css"
+          get "$CDN/bootstrap-icons@$BOOTSTRAP_ICONS/font/fonts/bootstrap-icons.woff2"     "$V/bootstrap-icons/fonts/bootstrap-icons.woff2"
+          get "$CDN/bootstrap-icons@$BOOTSTRAP_ICONS/font/fonts/bootstrap-icons.woff"      "$V/bootstrap-icons/fonts/bootstrap-icons.woff"
+          get "$CDN/sortablejs@$SORTABLE/Sortable.min.js"                        "$V/sortablejs/Sortable.min.js"
+          get "$CDN/@supabase/supabase-js@$SUPABASE_JS/dist/umd/supabase.js"    "$V/supabase/supabase.js"
+
+      - name: Periksa isi file
+        run: |
+          set -euo pipefail
+          V=assets/vendor
+          grep -q "Bootstrap  *v$BOOTSTRAP" $V/bootstrap/bootstrap.bundle.min.js
+          grep -q "bootstrap-icons" $V/bootstrap-icons/bootstrap-icons.min.css
+          grep -q "Sortable" $V/sortablejs/Sortable.min.js
+          grep -q "createClient" $V/supabase/supabase.js
+          echo "Semua file sesuai."
+
+      - name: Simpan ke repositori
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/vendor
+          if git diff --cached --quiet; then
+            echo "Tidak ada perubahan."
+          else
+            git commit -m "Perbarui pustaka di assets/vendor"
+            git push
+          fi

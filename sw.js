@@ -5,7 +5,7 @@
 // - Panggilan ke Supabase TIDAK pernah di-cache (selalu langsung ke server).
 // Naikkan VERSION jika daftar file di bawah atau versi pustaka CDN berubah.
 // =====================================================================
-const VERSION = 'v3';
+const VERSION = 'v4';
 const CACHE = 'pangkalan-' + VERSION;
 
 const APP_SHELL = [
@@ -16,24 +16,38 @@ const APP_SHELL = [
   './assets/icons/favicon.svg',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png',
+  './js/boot.js',
   './js/app.js',
   './js/api.js',
   './js/config.js',
   './js/store.js',
-  './js/utils.js'
+  './js/utils.js',
+  './assets/vendor/qrcode/qrcode.js'
+];
+// Pustaka di assets/vendor (ada setelah workflow "Unduh pustaka ke repositori" dijalankan)
+const VENDOR = [
+  './assets/vendor/bootstrap/bootstrap.min.css',
+  './assets/vendor/bootstrap/bootstrap.bundle.min.js',
+  './assets/vendor/bootstrap-icons/bootstrap-icons.min.css',
+  './assets/vendor/bootstrap-icons/fonts/bootstrap-icons.woff2',
+  './assets/vendor/sortablejs/Sortable.min.js',
+  './assets/vendor/supabase/supabase.js'
 ];
 const CDN = [
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css',
   'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js',
-  'https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js'
+  'https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js',
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1/dist/umd/supabase.js'
 ];
 
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE);
     await cache.addAll(APP_SHELL);
-    // Pustaka CDN: gagal satu tidak membatalkan pemasangan
+    // Pustaka lokal: jika belum ada (workflow belum dijalankan), lewati saja
+    await Promise.all(VENDOR.map(u => cache.add(u).catch(() => {})));
+    // Pustaka CDN (cadangan): gagal satu tidak membatalkan pemasangan
     await Promise.all(CDN.map(u => cache.add(new Request(u, { mode: 'cors' })).catch(() => {})));
     self.skipWaiting();
   })());
