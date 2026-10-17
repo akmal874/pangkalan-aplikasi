@@ -18,6 +18,10 @@
 }
 body { background: var(--pa-bg); min-height: 100vh; }
 
+/* Atribut hidden harus menang atas kelas Bootstrap seperti .d-flex (yang juga memakai !important).
+   Tanpa ini, banner dan form yang disembunyikan tetap tampil. */
+[hidden] { display: none !important; }
+
 .btn-accent {
   --bs-btn-bg: var(--pa-accent); --bs-btn-border-color: var(--pa-accent); --bs-btn-color: var(--pa-on-accent);
   --bs-btn-hover-bg: var(--pa-accent); --bs-btn-hover-border-color: var(--pa-accent); --bs-btn-hover-color: var(--pa-on-accent);
