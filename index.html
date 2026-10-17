@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="id" data-bs-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pangkalan Aplikasi</title>
+<meta name="description" content="Kumpulan link aplikasi pribadi">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0f6e7a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pangkalan">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link rel="stylesheet" href="assets/css/app.css">
+<script>
+  /* Tema dipasang sebelum halaman tampil agar tidak berkedip */
+  (function () {
+    var t = null;
+    try { t = localStorage.getItem('pa-theme'); } catch (e) {}
+    if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-bs-theme', t);
+  })();
+</script>
+</head>
+<body>
+
+<nav class="navbar border-bottom sticky-top">
+  <div class="container" style="max-width: 1000px;">
+    <span class="navbar-brand d-flex align-items-center gap-2 fw-bold m-0">
+      <span class="brand-mark"><i class="bi bi-grid-3x3-gap-fill"></i></span>
+      <span class="d-none d-sm-inline">Pangkalan Aplikasi</span>
+      <span class="d-sm-none fs-6">Pangkalan</span>
+    </span>
+    <div class="d-flex align-items-center gap-2">
+      <button class="btn btn-outline-secondary btn-sm rounded-3" type="button" data-action="theme" aria-label="Ganti tema" title="Ganti tema">
+        <i class="bi bi-moon-stars theme-icon"></i>
+      </button>
+      <button class="btn btn-outline-secondary btn-sm rounded-3 guest-only" type="button" data-action="manage" aria-label="Kelola">
+        <i class="bi bi-pencil-square"></i><span class="d-none d-sm-inline ms-1">Kelola</span>
+      </button>
+      <div class="dropdown owner-only">
+        <button class="btn btn-outline-secondary btn-sm rounded-3 dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Menu pemilik">
+          <i class="bi bi-person-check-fill text-accent"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><span class="dropdown-item-text small text-body-secondary">Masuk sebagai<br><b class="text-body" id="ownerEmail">-</b></span></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><button class="dropdown-item needs-online" type="button" data-action="cats"><i class="bi bi-tags me-2"></i>Kelola kategori</button></li>
+          <li><button class="dropdown-item" type="button" data-action="export"><i class="bi bi-download me-2"></i>Ekspor data (JSON)</button></li>
+          <li><button class="dropdown-item needs-online" type="button" data-action="import"><i class="bi bi-upload me-2"></i>Impor data (JSON)</button></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><button class="dropdown-item text-danger" type="button" data-action="logout"><i class="bi bi-box-arrow-right me-2"></i>Keluar</button></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<main class="container py-4" style="max-width: 1000px;">
+  <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
+    <div>
+      <div class="text-uppercase small text-body-secondary fw-semibold" style="letter-spacing:.06em" id="summary">Memuat…</div>
+      <h1 class="h3 fw-bold mb-0">Aplikasi saya</h1>
+    </div>
+    <div class="d-flex gap-2 owner-only">
+      <button class="btn btn-outline-secondary rounded-3 needs-online" type="button" data-action="editmode" id="editModeBtn">
+        <i class="bi bi-arrows-move me-1"></i>Atur
+      </button>
+      <button class="btn btn-accent rounded-3 d-none d-sm-inline-block needs-online" type="button" data-action="add">
+        <i class="bi bi-plus-lg me-1"></i>Tambah link
+      </button>
+    </div>
+  </div>
+
+  <div id="setupBanner" class="info-banner alert alert-info d-flex gap-2 align-items-start py-2" hidden>
+    <i class="bi bi-gear mt-1"></i>
+    <div>Supabase belum diatur. Isi <code>SUPABASE_URL</code> dan <code>SUPABASE_ANON_KEY</code> di file <code>js/config.js</code>, lalu muat ulang halaman.</div>
+  </div>
+
+  <div id="offlineBanner" class="info-banner alert alert-warning d-flex flex-wrap gap-2 align-items-start py-2" hidden>
+    <i class="bi bi-cloud-slash mt-1"></i>
+    <div class="flex-grow-1" style="min-width: 0">Server data tidak bisa dihubungi. Menampilkan daftar tersimpan di perangkat ini, terakhir diperbarui <b id="savedAt">-</b>. Menambah dan mengubah link sementara tidak bisa.</div>
+    <button class="btn btn-sm btn-outline-dark" type="button" data-action="retry"><i class="bi bi-arrow-clockwise me-1"></i>Coba lagi</button>
+  </div>
+
+  <div class="input-group mb-3">
+    <span class="input-group-text bg-body"><i class="bi bi-search"></i></span>
+    <input id="search" type="search" class="form-control" placeholder="Cari aplikasi…" autocomplete="off" aria-label="Cari aplikasi">
+  </div>
+
+  <div id="catControls" class="mb-3"></div>
+
+  <div id="editHint" class="info-banner px-3 py-2 mb-3 hint-accent" hidden>
+    <i class="bi bi-hand-index me-1"></i><span class="d-sm-none">Ketuk ikon untuk mengubah. Tekan dan tahan sebentar, lalu seret untuk mengatur urutan.</span><span class="d-none d-sm-inline">Klik kartu untuk mengubah. Seret pegangan <i class="bi bi-grip-vertical"></i> untuk mengatur urutan.</span> Tekan <b>Selesai</b> jika sudah.
+  </div>
+
+  <div id="list" class="d-flex flex-column gap-4">
+    <div class="text-center text-body-secondary p-5"><span class="spinner-border spinner-border-sm me-2"></span>Memuat daftar aplikasi…</div>
+  </div>
+
+  <p class="small text-body-secondary mt-4 mb-5">
+    <span class="d-sm-none"><i class="bi bi-hand-index-thumb me-1"></i>Tekan lama sebuah ikon untuk menyalin link.</span>
+    <span class="d-none d-sm-inline"><i class="bi bi-mouse me-1"></i>Klik kanan kartu atau tombol titik tiga untuk menyalin link.</span>
+  </p>
+</main>
+
+<div class="fab-wrap d-sm-none owner-only">
+  <button class="btn btn-accent fab needs-online" type="button" data-action="add" aria-label="Tambah link"><i class="bi bi-plus-lg"></i></button>
+</div>
+
+<input type="file" id="importFile" accept="application/json,.json" hidden>
+
+<!-- ===================== LEMBAR: PILIH KATEGORI ===================== -->
+<div class="offcanvas offcanvas-bottom sheet-bottom" tabindex="-1" id="catSheet" aria-labelledby="catSheetTitle">
+  <div class="sheet-grip"></div>
+  <div class="offcanvas-header pb-2">
+    <h2 class="offcanvas-title fs-5 fw-bold" id="catSheetTitle">Pilih kategori</h2>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Tutup"></button>
+  </div>
+  <div class="offcanvas-body pt-0 px-2" id="catSheetBody"></div>
+</div>
+
+<!-- ===================== LEMBAR: AKSI LINK ===================== -->
+<div class="offcanvas offcanvas-bottom sheet-bottom" tabindex="-1" id="linkSheet" aria-labelledby="linkSheetTitle">
+  <div class="sheet-grip"></div>
+  <div class="offcanvas-header pb-2 align-items-start">
+    <div class="d-flex align-items-center gap-3" style="min-width:0" id="linkSheetHead"></div>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Tutup"></button>
+  </div>
+  <div class="offcanvas-body pt-0 px-2" id="linkSheetBody"></div>
+</div>
+
+<!-- ===================== FORM TAMBAH / UBAH LINK ===================== -->
+<div class="modal fade" id="linkModal" tabindex="-1" aria-labelledby="modalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered sheet">
+    <form class="modal-content" id="linkForm" novalidate>
+      <div class="modal-header">
+        <h2 class="modal-title fs-5 fw-bold" id="modalTitle">Tambah link</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+      </div>
+      <div class="modal-body d-flex flex-column gap-3">
+        <div class="d-flex align-items-center gap-3">
+          <div class="d-flex flex-column align-items-center gap-1">
+            <span class="icon-preview" id="iconPreview"><i class="bi bi-app"></i></span>
+            <span class="badge rounded-pill text-bg-light border" style="font-size:.7rem" id="autoBadge"><i class="bi bi-magic me-1"></i>Otomatis</span>
+          </div>
+          <div class="flex-grow-1">
+            <label for="fName" class="form-label fw-semibold mb-1">Nama aplikasi</label>
+            <input id="fName" class="form-control" maxlength="80" placeholder="Contoh: Simulator Radar" required>
+            <div class="invalid-feedback">Nama aplikasi wajib diisi.</div>
+          </div>
+        </div>
+        <div>
+          <label for="fUrl" class="form-label fw-semibold">Link</label>
+          <input id="fUrl" class="form-control" inputmode="url" placeholder="https://…" required>
+          <div class="invalid-feedback">Link belum benar. Tempel alamat lengkap, misalnya https://claude.ai/…</div>
+          <div id="dupWarn" class="alert alert-warning small py-2 mt-2 mb-0" hidden></div>
+        </div>
+        <div>
+          <label for="fCat" class="form-label fw-semibold">Kategori</label>
+          <select id="fCat" class="form-select"></select>
+        </div>
+        <div id="newCatWrap" hidden>
+          <label for="fNewCat" class="form-label fw-semibold">Nama kategori baru</label>
+          <input id="fNewCat" class="form-control" maxlength="40" placeholder="Contoh: Ujian">
+          <div class="invalid-feedback" id="newCatErr">Nama kategori wajib diisi.</div>
+        </div>
+        <div>
+          <div class="d-flex align-items-baseline justify-content-between">
+            <div class="form-label fw-semibold" id="iconLabel">Ikon</div>
+            <button type="button" class="btn btn-link btn-sm p-0 text-accent" data-action="autoicon" id="autoIconBtn" hidden><i class="bi bi-magic me-1"></i>Kembali ke otomatis</button>
+          </div>
+          <div class="icon-grid" id="iconGrid" role="radiogroup" aria-labelledby="iconLabel"></div>
+          <label for="fIcon" class="form-label small text-body-secondary mt-2 mb-1">Atau ketik nama ikon lain dari icons.getbootstrap.com</label>
+          <input id="fIcon" class="form-control form-control-sm" placeholder="Contoh: rocket-takeoff" autocomplete="off" spellcheck="false">
+          <div class="invalid-feedback">Nama ikon hanya boleh huruf kecil, angka, dan tanda minus.</div>
+        </div>
+        <div>
+          <label for="fNote" class="form-label fw-semibold">Keterangan <span class="fw-normal text-body-secondary">(opsional)</span></label>
+          <input id="fNote" class="form-control" maxlength="120" placeholder="Contoh: versi Supabase, untuk kelas XI">
+        </div>
+        <div class="d-flex flex-column gap-2">
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" role="switch" id="fFav">
+            <label class="form-check-label" for="fFav"><i class="bi bi-star-fill text-star me-1"></i>Favorit, tampil di baris paling atas</label>
+          </div>
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" role="switch" id="fPrivate">
+            <label class="form-check-label" for="fPrivate"><i class="bi bi-lock-fill me-1"></i>Privat, hanya tampil setelah masuk</label>
+          </div>
+        </div>
+        <div id="formErr" class="alert alert-danger small py-2 mb-0" hidden></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-danger me-auto" id="delBtn" hidden>Hapus</button>
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+        <button type="submit" class="btn btn-accent" id="saveBtn">Simpan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== KELOLA KATEGORI ===================== -->
+<div class="modal fade" id="catModal" tabindex="-1" aria-labelledby="catModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable sheet">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="btn btn-sm btn-link text-body p-0 me-2" data-action="catback" id="catBackBtn" aria-label="Kembali" hidden><i class="bi bi-arrow-left fs-5"></i></button>
+        <h2 class="modal-title fs-5 fw-bold" id="catModalTitle">Kelola kategori</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+      </div>
+      <div class="modal-body" id="catListView">
+        <p class="small text-body-secondary">Urutan di sini menjadi urutan kategori di halaman utama. Seret pegangan atau pakai tombol panah.</p>
+        <div class="cat-list" id="catList"></div>
+        <button class="btn btn-outline-secondary w-100 mt-3" type="button" data-action="newcat"><i class="bi bi-plus-lg me-1"></i>Tambah kategori</button>
+      </div>
+      <form class="modal-body d-flex flex-column gap-3" id="catEditView" novalidate hidden>
+        <div class="d-flex align-items-center gap-3">
+          <span class="icon-preview" id="catPreview"><i class="bi bi-folder2"></i></span>
+          <div class="flex-grow-1">
+            <label for="cName" class="form-label fw-semibold mb-1">Nama kategori</label>
+            <input id="cName" class="form-control" maxlength="40" required>
+            <div class="invalid-feedback" id="cNameErr">Nama kategori wajib diisi.</div>
+          </div>
+        </div>
+        <div>
+          <div class="form-label fw-semibold" id="cColorLabel">Warna</div>
+          <div class="swatches" id="cColors" role="radiogroup" aria-labelledby="cColorLabel"></div>
+        </div>
+        <div>
+          <div class="form-label fw-semibold mb-1" id="cIconLabel">Ikon bawaan</div>
+          <p class="small text-body-secondary mb-2">Dipakai untuk link baru di kategori ini jika nama aplikasinya tidak cocok dengan ikon mana pun.</p>
+          <div class="icon-grid" id="catIconGrid" role="radiogroup" aria-labelledby="cIconLabel"></div>
+        </div>
+        <div id="catDelWarn" class="alert alert-danger small py-2 mb-0" hidden></div>
+        <div id="catErr" class="alert alert-danger small py-2 mb-0" hidden></div>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-danger me-auto" id="catDelBtn">Hapus</button>
+          <button type="button" class="btn btn-outline-secondary" data-action="catback">Batal</button>
+          <button type="submit" class="btn btn-accent" id="catSaveBtn">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== IMPOR ===================== -->
+<div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered sheet" style="max-width:440px">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title fs-5 fw-bold" id="importTitle">Impor data</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+      </div>
+      <div class="modal-body">
+        <p id="importSummary" class="mb-3"></p>
+        <div class="d-flex flex-column gap-2">
+          <button class="btn btn-accent text-start" type="button" data-action="importmerge">
+            <b>Gabungkan</b><br><span class="small">Tambahkan yang belum ada. Link dengan alamat yang sama dilewati.</span>
+          </button>
+          <button class="btn btn-outline-danger text-start" type="button" data-action="importreplace" id="replaceBtn">
+            <b>Ganti semua</b><br><span class="small">Hapus data sekarang dan pakai isi file.</span>
+          </button>
+        </div>
+        <div id="importErr" class="alert alert-danger small py-2 mt-3 mb-0" hidden></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MASUK / LUPA PASSWORD / PASSWORD BARU ===================== -->
+<div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered sheet" style="max-width:420px">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h2 class="modal-title fs-5 fw-bold" id="loginTitle">Masuk untuk mengelola</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+      </div>
+
+      <form class="modal-body pt-2" id="loginForm" novalidate>
+        <p class="text-body-secondary small mb-3">Daftar link bisa dibuka tanpa masuk. Masuk hanya untuk mengelola link dan melihat link privat.</p>
+        <div class="mb-3">
+          <label for="loginEmail" class="form-label fw-semibold">Email</label>
+          <input id="loginEmail" type="email" class="form-control" placeholder="nama@email.com" autocomplete="username" required>
+          <div class="invalid-feedback">Masukkan alamat email yang benar.</div>
+        </div>
+        <div class="mb-2">
+          <label for="loginPass" class="form-label fw-semibold">Password</label>
+          <div class="input-group has-validation">
+            <input id="loginPass" type="password" class="form-control" autocomplete="current-password" required>
+            <button class="btn btn-outline-secondary" type="button" data-action="togglepass" data-target="loginPass" aria-label="Tampilkan password"><i class="bi bi-eye"></i></button>
+            <div class="invalid-feedback">Password wajib diisi.</div>
+          </div>
+        </div>
+        <div class="text-end mb-3"><button type="button" class="btn btn-link btn-sm p-0 text-accent" data-action="showreset">Lupa password?</button></div>
+        <div id="loginError" class="alert alert-danger small py-2" hidden></div>
+        <button class="btn btn-accent w-100 py-2" type="submit" id="loginBtn">Masuk</button>
+        <p class="text-body-secondary small mt-3 mb-0"><i class="bi bi-shield-lock me-1"></i>Tidak ada pendaftaran dari aplikasi. Akun pemilik dibuat di dashboard Supabase.</p>
+      </form>
+
+      <form class="modal-body pt-2" id="resetForm" novalidate hidden>
+        <p class="text-body-secondary small mb-3">Masukkan email akun Anda. Supabase akan mengirim link untuk membuat password baru.</p>
+        <div class="mb-3">
+          <label for="resetEmail" class="form-label fw-semibold">Email</label>
+          <input id="resetEmail" type="email" class="form-control" placeholder="nama@email.com" required>
+          <div class="invalid-feedback">Masukkan alamat email yang benar.</div>
+        </div>
+        <div id="resetMsg" class="alert small py-2" hidden></div>
+        <button class="btn btn-accent w-100 py-2" type="submit" id="resetBtn">Kirim link reset</button>
+        <button type="button" class="btn btn-link btn-sm w-100 mt-2 text-body-secondary" data-action="showlogin"><i class="bi bi-arrow-left me-1"></i>Kembali ke Masuk</button>
+      </form>
+
+      <form class="modal-body pt-2" id="newPassForm" novalidate hidden>
+        <p class="text-body-secondary small mb-3">Buat password baru untuk akun Anda. Minimal 8 karakter.</p>
+        <div class="mb-3">
+          <label for="newPass" class="form-label fw-semibold">Password baru</label>
+          <div class="input-group has-validation">
+            <input id="newPass" type="password" class="form-control" autocomplete="new-password" minlength="8" required>
+            <button class="btn btn-outline-secondary" type="button" data-action="togglepass" data-target="newPass" aria-label="Tampilkan password"><i class="bi bi-eye"></i></button>
+            <div class="invalid-feedback">Password minimal 8 karakter.</div>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label for="newPass2" class="form-label fw-semibold">Ulangi password baru</label>
+          <input id="newPass2" type="password" class="form-control" autocomplete="new-password" required>
+          <div class="invalid-feedback">Password tidak sama.</div>
+        </div>
+        <div id="newPassMsg" class="alert alert-danger small py-2" hidden></div>
+        <button class="btn btn-accent w-100 py-2" type="submit" id="newPassBtn">Simpan password</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container position-fixed bottom-0 start-50 translate-middle-x p-3" style="z-index:1090">
+  <div id="toast" class="toast align-items-center text-bg-dark border-0" role="status" aria-live="polite" aria-atomic="true">
+    <div class="d-flex">
+      <div class="toast-body" id="toastText"></div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Tutup"></button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script type="module" src="js/app.js"></script>
+<script>
+  /* Service worker: halaman tetap bisa dibuka tanpa internet */
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  }
+</script>
+</body>
+</html>
